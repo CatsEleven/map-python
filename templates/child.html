@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8" />
-    <title>OSM 道路のみマップ + スーパー表示</title>
+    <title>OSM 道路のみマップ + スーパー表示 + 信号機</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
@@ -18,6 +18,17 @@
         #map {
             width: 100%;
             height: 100%;
+        }
+
+        .super-label .label-text {
+            background: white;
+            border: 2px solid #333;
+            border-radius: 6px;
+            padding: 3px 6px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #222;
+            white-space: nowrap;
         }
     </style>
 </head>
@@ -35,7 +46,7 @@
 
         const map = L.map("map").setView([centerLat, centerLon], 16);
 
-        // ---- 完全白の背景（建物なし） ----
+        // ---- 完全白の背景 ----
         L.tileLayer(
             "https://cyberjapandata.gsi.go.jp/xyz/blank/{z}/{x}/{y}.png",
             {
@@ -45,30 +56,13 @@
         ).addTo(map);
 
         // ----------------------------
-        // スーパーの強調表示（ラベル常時表示版）
+        // スーパーアイコン
         // ----------------------------
         const supermarketIcon = L.icon({
             iconUrl: "{{ url_for('static', filename='super.svg') }}",
             iconSize: [100, 100],
             iconAnchor: [50, 50]
         });
-
-        // CSSラベル
-        const labelCss = `
-  .super-label .label-text {
-    background: white;
-    border: 2px solid #333;
-    border-radius: 6px;
-    padding: 3px 6px;
-    font-size: 18px;
-    font-weight: bold;
-    color: #222;
-    white-space: nowrap;
-  }
-`;
-        const styleTag = document.createElement("style");
-        styleTag.innerHTML = labelCss;
-        document.head.appendChild(styleTag);
 
         const supermarketQuery = `
   [out:json][timeout:25];
@@ -94,10 +88,8 @@
 
                     const name = el.tags?.name || "スーパー";
 
-                    // スーパーのマーカー（アイコン）
                     L.marker([lat, lon], { icon: supermarketIcon }).addTo(map);
 
-                    // ラベルを常時表示
                     const label = L.divIcon({
                         className: "super-label",
                         html: `<div class="label-text">${name}</div>`,
@@ -108,8 +100,47 @@
                 });
             })
             .catch(err => console.error(err));
+
+
         // ----------------------------
-        // OSM 道路表示（必要な道路のみ）
+        // 歩行者用信号機の表示
+        // ----------------------------
+        const signalIcon = L.icon({
+            iconUrl: "{{ url_for('static', filename='signal-person.png') }}",
+            iconSize: [40, 40],
+            iconAnchor: [20, 20]
+        });
+
+        const signalQuery = `
+[out:json][timeout:25];
+(
+    node["highway"="traffic_signals"](around:1500, ${centerLat}, ${centerLon});
+    way["highway"="traffic_signals"](around:1500, ${centerLat}, ${centerLon});
+    relation["highway"="traffic_signals"](around:1500, ${centerLat}, ${centerLon});
+);
+out center;
+`;
+
+        fetch("https://overpass-api.de/api/interpreter", {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: signalQuery
+        })
+            .then(res => res.json())
+            .then(data => {
+                data.elements.forEach(el => {
+                    const lat = el.lat || el.center?.lat;
+                    const lon = el.lon || el.center?.lon;
+                    if (!lat || !lon) return;
+
+                    L.marker([lat, lon], { icon: signalIcon }).addTo(map);
+                });
+            })
+            .catch(err => console.error(err));
+
+
+        // ----------------------------
+        // OSM 道路表示
         // ----------------------------
         const roadQuery = `
       [out:json][timeout:25];
@@ -131,13 +162,11 @@
 
                     const latlngs = el.geometry.map(g => [g.lat, g.lon]);
 
-                    // ---- 道路の太さルール ----
                     let w = 4;
                     if (el.tags.highway === "primary") w = 15;
                     else if (el.tags.highway === "secondary") w = 12;
                     else if (el.tags.highway === "tertiary") w = 10;
                     else if (el.tags.highway === "residential") w = 7;
-                    else w = 4;
 
                     L.polyline(latlngs, {
                         color: "#222",
