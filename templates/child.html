@@ -76,6 +76,12 @@
             iconAnchor: [45, 45]
         });
 
+        const schoolIcon = L.icon({
+            iconUrl: "{{ url_for('static', filename='school.svg') }}",
+            iconSize: [90, 90],
+            iconAnchor: [45, 45]
+        });
+
         const supermarketQuery = `
   [out:json][timeout:25];
   (
@@ -148,6 +154,47 @@
                         html: `<div class="label-text">${name}</div>`,
                         iconSize: [120, 34],
                         iconAnchor: [60, 80]
+                    });
+                    L.marker([lat, lon], { icon: label }).addTo(map);
+                });
+            })
+            .catch(err => console.error(err));
+
+
+        // ----------------------------
+        // 教育機関表示（学校・幼稚園など）
+        // ----------------------------
+        const schoolQuery = `
+  [out:json][timeout:25];
+  (
+    node["amenity"~"^(school|kindergarten|college|university)$"](around:1500, ${centerLat}, ${centerLon});
+    way["amenity"~"^(school|kindergarten|college|university)$"](around:1500, ${centerLat}, ${centerLon});
+    relation["amenity"~"^(school|kindergarten|college|university)$"](around:1500, ${centerLat}, ${centerLon});
+  );
+  out center;
+`;
+
+        fetch("https://overpass-api.de/api/interpreter", {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: schoolQuery
+        })
+            .then(res => res.json())
+            .then(data => {
+                data.elements.forEach(el => {
+                    const lat = el.lat || el.center?.lat;
+                    const lon = el.lon || el.center?.lon;
+                    if (!lat || !lon) return;
+
+                    const name = el.tags?.name || "教育機関";
+
+                    L.marker([lat, lon], { icon: schoolIcon }).addTo(map);
+
+                    const label = L.divIcon({
+                        className: "poi-label",
+                        html: `<div class="label-text">${name}</div>`,
+                        iconSize: [140, 36],
+                        iconAnchor: [70, 80]
                     });
                     L.marker([lat, lon], { icon: label }).addTo(map);
                 });
