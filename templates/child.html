@@ -114,10 +114,11 @@
 
         // ---- 完全白の背景 ----
         L.tileLayer(
-            "https://cyberjapandata.gsi.go.jp/xyz/blank/{z}/{x}/{y}.png",
+            "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
             {
                 maxZoom: 19,
-                attribution: "<a href='https://maps.gsi.go.jp/development/'>地理院タイル</a>"
+                attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+                subdomains: 'abcd'
             }
         ).addTo(map);
 
@@ -148,12 +149,24 @@
             iconAnchor: [45, 45]
         });
 
-        const supermarketQuery = `
-  [out:json][timeout:25];
+        const poiQuery = `
+  [out:json][timeout:20];
   (
-    node["shop"="supermarket"](around:1500, ${centerLat}, ${centerLon});
-    way["shop"="supermarket"](around:1500, ${centerLat}, ${centerLon});
-    relation["shop"="supermarket"](around:1500, ${centerLat}, ${centerLon});
+    node["shop"="supermarket"](around:1200, ${centerLat}, ${centerLon});
+    way["shop"="supermarket"](around:1200, ${centerLat}, ${centerLon});
+    relation["shop"="supermarket"](around:1200, ${centerLat}, ${centerLon});
+
+    node["shop"="convenience"](around:1200, ${centerLat}, ${centerLon});
+    way["shop"="convenience"](around:1200, ${centerLat}, ${centerLon});
+    relation["shop"="convenience"](around:1200, ${centerLat}, ${centerLon});
+
+    node["railway"="station"](around:1500, ${centerLat}, ${centerLon});
+    way["railway"="station"](around:1500, ${centerLat}, ${centerLon});
+    relation["railway"="station"](around:1500, ${centerLat}, ${centerLon});
+
+    node["amenity"~"^(school|kindergarten|college|university)$"](around:1200, ${centerLat}, ${centerLon});
+    way["amenity"~"^(school|kindergarten|college|university)$"](around:1200, ${centerLat}, ${centerLon});
+    relation["amenity"~"^(school|kindergarten|college|university)$"](around:1200, ${centerLat}, ${centerLon});
   );
   out center;
 `;
@@ -161,7 +174,7 @@
         fetch("https://overpass-api.de/api/interpreter", {
             method: "POST",
             headers: { "Content-Type": "text/plain" },
-            body: supermarketQuery
+            body: poiQuery
         })
             .then(res => res.json())
             .then(data => {
@@ -170,132 +183,27 @@
                     const lon = el.lon || el.center?.lon;
                     if (!lat || !lon) return;
 
-                    const name = el.tags?.name || "スーパー";
+                    const tags = el.tags || {};
+                    let icon = null;
+                    let name = tags.name;
 
-                    L.marker([lat, lon], { icon: supermarketIcon }).addTo(map);
+                    if (tags.shop === "supermarket") {
+                        icon = supermarketIcon;
+                        name = name || "スーパー";
+                    } else if (tags.shop === "convenience") {
+                        icon = convenienceIcon;
+                        name = name || "コンビニ";
+                    } else if (tags.railway === "station") {
+                        icon = stationIcon;
+                        name = name || "駅";
+                    } else if (tags.amenity && /^(school|kindergarten|college|university)$/.test(tags.amenity)) {
+                        icon = schoolIcon;
+                        name = name || "教育機関";
+                    }
 
-                    const label = L.divIcon({
-                        className: "poi-label",
-                        html: `<div class="label-text">${name}</div>`,
-                        iconSize: [0, 0],
-                        iconAnchor: [0, 0]
-                    });
-                    L.marker([lat, lon], { icon: label }).addTo(map);
-                });
-            })
-            .catch(err => console.error(err));
+                    if (!icon) return;
 
-
-        // ----------------------------
-        // 駅表示
-        // ----------------------------
-        const stationQuery = `
-  [out:json][timeout:25];
-  (
-    node["railway"="station"](around:2000, ${centerLat}, ${centerLon});
-    way["railway"="station"](around:2000, ${centerLat}, ${centerLon});
-    relation["railway"="station"](around:2000, ${centerLat}, ${centerLon});
-  );
-  out center;
-`;
-
-        fetch("https://overpass-api.de/api/interpreter", {
-            method: "POST",
-            headers: { "Content-Type": "text/plain" },
-            body: stationQuery
-        })
-            .then(res => res.json())
-            .then(data => {
-                data.elements.forEach(el => {
-                    const lat = el.lat || el.center?.lat;
-                    const lon = el.lon || el.center?.lon;
-                    if (!lat || !lon) return;
-
-                    const name = el.tags?.name || "駅";
-
-                    L.marker([lat, lon], { icon: stationIcon }).addTo(map);
-
-                    const label = L.divIcon({
-                        className: "poi-label",
-                        html: `<div class="label-text">${name}</div>`,
-                        iconSize: [0, 0],
-                        iconAnchor: [0, 0]
-                    });
-                    L.marker([lat, lon], { icon: label }).addTo(map);
-                });
-            })
-            .catch(err => console.error(err));
-
-
-        // ----------------------------
-        // 教育機関表示（学校・幼稚園など）
-        // ----------------------------
-        const schoolQuery = `
-  [out:json][timeout:25];
-  (
-    node["amenity"~"^(school|kindergarten|college|university)$"](around:1500, ${centerLat}, ${centerLon});
-    way["amenity"~"^(school|kindergarten|college|university)$"](around:1500, ${centerLat}, ${centerLon});
-    relation["amenity"~"^(school|kindergarten|college|university)$"](around:1500, ${centerLat}, ${centerLon});
-  );
-  out center;
-`;
-
-        fetch("https://overpass-api.de/api/interpreter", {
-            method: "POST",
-            headers: { "Content-Type": "text/plain" },
-            body: schoolQuery
-        })
-            .then(res => res.json())
-            .then(data => {
-                data.elements.forEach(el => {
-                    const lat = el.lat || el.center?.lat;
-                    const lon = el.lon || el.center?.lon;
-                    if (!lat || !lon) return;
-
-                    const name = el.tags?.name || "教育機関";
-
-                    L.marker([lat, lon], { icon: schoolIcon }).addTo(map);
-
-                    const label = L.divIcon({
-                        className: "poi-label",
-                        html: `<div class="label-text">${name}</div>`,
-                        iconSize: [0, 0],
-                        iconAnchor: [0, 0]
-                    });
-                    L.marker([lat, lon], { icon: label }).addTo(map);
-                });
-            })
-            .catch(err => console.error(err));
-
-
-        // ----------------------------
-        // コンビニ表示
-        // ----------------------------
-        const convenienceQuery = `
-  [out:json][timeout:25];
-  (
-    node["shop"="convenience"](around:1500, ${centerLat}, ${centerLon});
-    way["shop"="convenience"](around:1500, ${centerLat}, ${centerLon});
-    relation["shop"="convenience"](around:1500, ${centerLat}, ${centerLon});
-  );
-  out center;
-`;
-
-        fetch("https://overpass-api.de/api/interpreter", {
-            method: "POST",
-            headers: { "Content-Type": "text/plain" },
-            body: convenienceQuery
-        })
-            .then(res => res.json())
-            .then(data => {
-                data.elements.forEach(el => {
-                    const lat = el.lat || el.center?.lat;
-                    const lon = el.lon || el.center?.lon;
-                    if (!lat || !lon) return;
-
-                    const name = el.tags?.name || "コンビニ";
-
-                    L.marker([lat, lon], { icon: convenienceIcon }).addTo(map);
+                    L.marker([lat, lon], { icon }).addTo(map);
 
                     const label = L.divIcon({
                         className: "poi-label",
@@ -345,44 +253,6 @@ out center;
             })
             .catch(err => console.error(err));
 
-
-        // ----------------------------
-        // OSM 道路表示
-        // ----------------------------
-        const roadQuery = `
-      [out:json][timeout:25];
-      (
-        way["highway"~"^(primary|secondary|tertiary|unclassified|residential|trunk|motorway)$"]
-          (around:2000, ${centerLat}, ${centerLon});
-      );
-      out geom;
-    `;
-
-        fetch("https://overpass-api.de/api/interpreter", {
-            method: "POST",
-            body: roadQuery
-        })
-            .then(res => res.json())
-            .then(data => {
-                data.elements.forEach(el => {
-                    if (!el.geometry) return;
-
-                    const latlngs = el.geometry.map(g => [g.lat, g.lon]);
-
-                    let w = 4;
-                    if (el.tags.highway === "primary") w = 15;
-                    else if (el.tags.highway === "secondary") w = 12;
-                    else if (el.tags.highway === "tertiary") w = 10;
-                    else if (el.tags.highway === "residential") w = 7;
-
-                    L.polyline(latlngs, {
-                        color: "#222",
-                        weight: w,
-                        opacity: 1
-                    }).addTo(map);
-                });
-            })
-            .catch(err => console.error(err));
 
     </script>
 
