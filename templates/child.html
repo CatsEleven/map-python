@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8" />
+    <title>OSM 道路のみマップ + スーパー表示</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+            background-color: white;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // ---- マップ中心 ----
+        const centerLat = 35.568224057746825;
+        const centerLon = 139.3988371730611;
+
+        const map = L.map("map").setView([centerLat, centerLon], 16);
+
+        // ---- 完全白の背景（建物なし） ----
+        L.tileLayer(
+            "https://cyberjapandata.gsi.go.jp/xyz/blank/{z}/{x}/{y}.png",
+            {
+                maxZoom: 19,
+                attribution: "<a href='https://maps.gsi.go.jp/development/'>地理院タイル</a>"
+            }
+        ).addTo(map);
+
+        // ----------------------------
+        // スーパーの強調表示（ラベル常時表示版）
+        // ----------------------------
+        const supermarketIcon = L.icon({
+            iconUrl: "{{ url_for('static', filename='super.svg') }}",
+            iconSize: [100, 100],
+            iconAnchor: [50, 50]
+        });
+
+        // CSSラベル
+        const labelCss = `
+  .super-label .label-text {
+    background: white;
+    border: 2px solid #333;
+    border-radius: 6px;
+    padding: 3px 6px;
+    font-size: 18px;
+    font-weight: bold;
+    color: #222;
+    white-space: nowrap;
+  }
+`;
+        const styleTag = document.createElement("style");
+        styleTag.innerHTML = labelCss;
+        document.head.appendChild(styleTag);
+
+        const supermarketQuery = `
+  [out:json][timeout:25];
+  (
+    node["shop"="supermarket"](around:1500, ${centerLat}, ${centerLon});
+    way["shop"="supermarket"](around:1500, ${centerLat}, ${centerLon});
+    relation["shop"="supermarket"](around:1500, ${centerLat}, ${centerLon});
+  );
+  out center;
+`;
+
+        fetch("https://overpass-api.de/api/interpreter", {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: supermarketQuery
+        })
+            .then(res => res.json())
+            .then(data => {
+                data.elements.forEach(el => {
+                    const lat = el.lat || el.center?.lat;
+                    const lon = el.lon || el.center?.lon;
+                    if (!lat || !lon) return;
+
+                    const name = el.tags?.name || "スーパー";
+
+                    // スーパーのマーカー（アイコン）
+                    L.marker([lat, lon], { icon: supermarketIcon }).addTo(map);
+
+                    // ラベルを常時表示
+                    const label = L.divIcon({
+                        className: "super-label",
+                        html: `<div class="label-text">${name}</div>`,
+                        iconSize: [100, 30],
+                        iconAnchor: [50, 70]
+                    });
+                    L.marker([lat, lon], { icon: label }).addTo(map);
+                });
+            })
+            .catch(err => console.error(err));
+        // ----------------------------
+        // OSM 道路表示（必要な道路のみ）
+        // ----------------------------
+        const roadQuery = `
+      [out:json][timeout:25];
+      (
+        way["highway"~"^(primary|secondary|tertiary|unclassified|residential|trunk|motorway)$"]
+          (around:2000, ${centerLat}, ${centerLon});
+      );
+      out geom;
+    `;
+
+        fetch("https://overpass-api.de/api/interpreter", {
+            method: "POST",
+            body: roadQuery
+        })
+            .then(res => res.json())
+            .then(data => {
+                data.elements.forEach(el => {
+                    if (!el.geometry) return;
+
+                    const latlngs = el.geometry.map(g => [g.lat, g.lon]);
+
+                    // ---- 道路の太さルール ----
+                    let w = 4;
+                    if (el.tags.highway === "primary") w = 15;
+                    else if (el.tags.highway === "secondary") w = 12;
+                    else if (el.tags.highway === "tertiary") w = 10;
+                    else if (el.tags.highway === "residential") w = 7;
+                    else w = 4;
+
+                    L.polyline(latlngs, {
+                        color: "#222",
+                        weight: w,
+                        opacity: 1
+                    }).addTo(map);
+                });
+            })
+            .catch(err => console.error(err));
+
+    </script>
+
+</body>
+
+</html>
