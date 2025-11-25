@@ -20,6 +20,12 @@
             height: 100%;
         }
 
+        video {
+            width: 260px;
+            height: auto;
+            border-radius: 8px;
+        }
+
         .poi-label {
             transform: translate(-50%, -110%);
             pointer-events: none;
@@ -56,11 +62,55 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
+        const logs = {{ logs | tojson }};
+
+        function formatJST(utcString) {
+            const date = new Date(utcString);
+            const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+
+            const Y = jst.getFullYear();
+            const M = String(jst.getMonth() + 1).padStart(2, '0');
+            const D = String(jst.getDate()).padStart(2, '0');
+            const h = String(jst.getHours()).padStart(2, '0');
+            const m = String(jst.getMinutes()).padStart(2, '0');
+
+            return `${Y}/${M}/${D} ${h}:${m}`;
+        }
+
         // ---- マップ中心 ----
         const centerLat = 35.568224057746825;
         const centerLon = 139.3988371730611;
 
-        const map = L.map("map").setView([centerLat, centerLon], 16);
+        const map = L.map("map").setView([centerLat, centerLon], 18);
+
+        const dangerIcon = L.icon({
+            iconUrl: "{{ url_for('static', filename='kiken.png') }}",
+            iconSize: [64, 64],
+            iconAnchor: [32, 60],
+            popupAnchor: [0, -54]
+        });
+
+
+        logs.forEach(item => {
+            const lat = item.latitude;
+            const lon = item.longitude;
+            if (!lat || !lon) return;
+
+            const jstTime = formatJST(item.created_at);
+
+            const popupHtml = `
+                <div>
+                    <p style="margin:0 0 8px;font-weight:bold;">${jstTime}</p>
+                    <video controls preload="metadata">
+                        <source src="${item.imageUrl}" type="video/mp4">
+                    </video>
+                </div>
+            `;
+
+            L.marker([lat, lon], { icon: dangerIcon })
+                .addTo(map)
+                .bindPopup(popupHtml);
+        });
 
         // ---- 完全白の背景 ----
         L.tileLayer(
