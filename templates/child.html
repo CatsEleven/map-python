@@ -20,7 +20,7 @@
             height: 100%;
         }
 
-        .super-label .label-text {
+        .poi-label .label-text {
             background: white;
             border: 2px solid #333;
             border-radius: 6px;
@@ -64,6 +64,12 @@
             iconAnchor: [50, 50]
         });
 
+        const convenienceIcon = L.icon({
+            iconUrl: "{{ url_for('static', filename='convini.svg') }}",
+            iconSize: [80, 80],
+            iconAnchor: [40, 40]
+        });
+
         const supermarketQuery = `
   [out:json][timeout:25];
   (
@@ -91,7 +97,48 @@
                     L.marker([lat, lon], { icon: supermarketIcon }).addTo(map);
 
                     const label = L.divIcon({
-                        className: "super-label",
+                        className: "poi-label",
+                        html: `<div class="label-text">${name}</div>`,
+                        iconSize: [100, 30],
+                        iconAnchor: [50, 70]
+                    });
+                    L.marker([lat, lon], { icon: label }).addTo(map);
+                });
+            })
+            .catch(err => console.error(err));
+
+
+        // ----------------------------
+        // コンビニ表示
+        // ----------------------------
+        const convenienceQuery = `
+  [out:json][timeout:25];
+  (
+    node["shop"="convenience"](around:1500, ${centerLat}, ${centerLon});
+    way["shop"="convenience"](around:1500, ${centerLat}, ${centerLon});
+    relation["shop"="convenience"](around:1500, ${centerLat}, ${centerLon});
+  );
+  out center;
+`;
+
+        fetch("https://overpass-api.de/api/interpreter", {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: convenienceQuery
+        })
+            .then(res => res.json())
+            .then(data => {
+                data.elements.forEach(el => {
+                    const lat = el.lat || el.center?.lat;
+                    const lon = el.lon || el.center?.lon;
+                    if (!lat || !lon) return;
+
+                    const name = el.tags?.name || "コンビニ";
+
+                    L.marker([lat, lon], { icon: convenienceIcon }).addTo(map);
+
+                    const label = L.divIcon({
+                        className: "poi-label",
                         html: `<div class="label-text">${name}</div>`,
                         iconSize: [100, 30],
                         iconAnchor: [50, 70]
