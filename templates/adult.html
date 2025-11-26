@@ -32,7 +32,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-  const logs = {{ logs | tojson }};
+  const logs = JSON.parse('{{ logs | tojson | safe }}');
 
   // 日本時間表示フォーマット関数
   function formatJST(utcString) {
