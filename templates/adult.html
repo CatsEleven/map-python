@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="utf-8" />
-    <title>Near Miss Map</title>
+    <title>大人向け交通安全マップ</title>
 
     <link
       rel="stylesheet"
@@ -36,8 +36,8 @@
 
   // 日本時間表示フォーマット関数
   function formatJST(utcString) {
-    const date = new Date(utcString);       // UTCとして解釈
-    const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);  // JSTに変換
+    const date = new Date(utcString);       
+    const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);  
 
     const Y = jst.getFullYear();
     const M = String(jst.getMonth() + 1).padStart(2, '0');
