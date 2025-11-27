@@ -59,10 +59,13 @@
     const lon = item.longitude;
 
     const jstTime = formatJST(item.created_at);
+    const speed = Number(item.speed);
+    const speedText = `${speed.toFixed(1)} km/h`;
 
     const popupHtml = `
       <div>
         <p>${jstTime}</p>
+        <p>AEB作動時の車速: ${speedText}</p>
         <video controls width="300" preload="metadata">
         <source src="${item.imageUrl}" type="video/mp4">
         </video>
