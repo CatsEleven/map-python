@@ -219,6 +219,39 @@
             })
             .catch(err => console.error(err));
 
+        // ---- 鉄道路線を強調表示 ----
+        const railwayQuery = `
+[out:json][timeout:25];
+(
+  way["railway"="rail"](around:3000, ${centerLat}, ${centerLon});
+  relation["railway"="rail"](around:3000, ${centerLat}, ${centerLon});
+);
+out geom;
+`;
+
+        fetch("https://overpass-api.de/api/interpreter", {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: railwayQuery
+        })
+            .then(res => res.json())
+            .then(data => {
+                data.elements.forEach(el => {
+                    const geometry = el.geometry;
+                    if (!geometry || geometry.length === 0) return;
+
+                    const latlngs = geometry.map(point => [point.lat, point.lon]);
+                    L.polyline(latlngs, {
+                        color: "#f24e1e",
+                        weight: 7,
+                        opacity: 0.95,
+                        lineJoin: "round",
+                        dashArray: "10 6"
+                    }).addTo(map);
+                });
+            })
+            .catch(err => console.error(err));
+
 
         // ----------------------------
         // 歩行者用信号機の表示
